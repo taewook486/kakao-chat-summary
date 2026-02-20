@@ -21,10 +21,35 @@ from .styles import MAIN_STYLESHEET
 
 # 프로젝트 모듈 import
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from parser import KakaoLogParser
+
+# Direct imports from src modules
 from db import get_db, ChatRoom, Message
+from db.database import Database
 from file_storage import get_storage
+from parser import KakaoLogParser
 from url_extractor import extract_urls_from_text, save_urls_to_file, deduplicate_urls
+
+# Repository layer - using absolute imports from src package
+import sys
+from pathlib import Path as PathLib
+src_root = str(PathLib(__file__).parent.parent.parent)
+if src_root not in sys.path:
+    sys.path.insert(0, src_root)
+
+from src.repositories.chat_room_repository import ChatRoomRepository
+from src.repositories.message_repository import MessageRepository
+from src.repositories.summary_repository import SummaryRepository
+from src.repositories.sync_log_repository import SyncLogRepository
+from src.repositories.url_repository import URLRepository
+
+# Service layer
+from src.services.chat_service import ChatService
+from src.services.summary_service import SummaryService
+from src.services.url_service import URLService
+from src.services.file_service import FileService
+
+# Worker layer (new architecture) - Note: not used directly in MainWindow yet
+# The internal workers are kept for now due to signal interface compatibility
 
 
 class MessageParser:
@@ -1259,13 +1284,43 @@ class MainWindow(QMainWindow):
         
         self.current_room_id: Optional[int] = None
         self.current_room_file: Optional[str] = None
+
+        # Database instance (for backward compatibility during transition)
         self.db = get_db()
         self.storage = get_storage()
-        
+
+        # Repository layer
+        self.chat_room_repo = ChatRoomRepository(self.db)
+        self.message_repo = MessageRepository(self.db)
+        self.summary_repo = SummaryRepository(self.db)
+        self.url_repo = URLRepository(self.db)
+        self.sync_log_repo = SyncLogRepository(self.db)
+
+        # Service layer
+        self.chat_service = ChatService(
+            chat_room_repo=self.chat_room_repo,
+            message_repo=self.message_repo,
+            sync_log_repo=self.sync_log_repo,
+            file_storage=self.storage,
+        )
+        self.summary_service = SummaryService(
+            summary_repo=self.summary_repo,
+            chat_room_repo=self.chat_room_repo,
+            message_repo=self.message_repo,
+        )
+        self.url_service = URLService(
+            url_repo=self.url_repo,
+            chat_room_repo=self.chat_room_repo,
+        )
+        self.file_service = FileService(
+            file_storage=self.storage,
+            chat_room_repo=self.chat_room_repo,
+        )
+
         # 워커 참조 유지
         self.upload_worker: Optional[FileUploadWorker] = None
         self.sync_worker: Optional[SyncWorker] = None
-        self.summary_worker: Optional[SummaryGeneratorWorker] = None
+        self.summary_worker: Optional[SummaryWorker] = None
         self.recovery_worker: Optional[RecoveryWorker] = None
         self.progress_dialog: Optional[SummaryProgressDialog] = None
         self.summary_progress_widget: Optional[SummaryProgressWidget] = None
@@ -1906,10 +1961,10 @@ class MainWindow(QMainWindow):
             item = self.room_list_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        
-        # DB에서 채팅방 목록 로드
-        rooms = self.db.get_all_rooms()
-        
+
+        # Repository에서 채팅방 목록 로드
+        rooms = self.chat_room_repo.get_all()
+
         if not rooms:
             # 채팅방이 없을 때 안내 메시지
             empty_label = QLabel("📁 채팅방을 추가해주세요")
@@ -1917,10 +1972,10 @@ class MainWindow(QMainWindow):
             empty_label.setStyleSheet("color: #888888; padding: 20px;")
             self.room_list_layout.insertWidget(0, empty_label)
             return
-        
+
         for room in rooms:
             # 메시지 수 조회
-            msg_count = self.db.get_message_count_by_room(room.id)
+            msg_count = self.message_repo.get_count_by_room(room.id)
             
             widget = ChatRoomWidget(
                 room_id=room.id,
@@ -1941,11 +1996,11 @@ class MainWindow(QMainWindow):
         self.current_room_id = room_id
         self.current_room_file = file_path
 
-        
-        # 채팅방 통계 로드
-        stats = self.db.get_room_stats(room_id)
+
+        # 채팅방 통계 로드 (using service layer)
+        stats = self.chat_service.get_room_statistics(room_id)
         room_name = "채팅방"
-        
+
         if stats:
             room_name = stats.get('room_name', '채팅방')
             self.header_label.setText(f"📊 {room_name}")
@@ -1980,9 +2035,9 @@ class MainWindow(QMainWindow):
             else:
                 summary_sub = "대화 데이터 없음"
             self.card_summaries.update_card(f"{done_dates}", summary_sub)
-            
-            # 요약 목록 조회
-            summaries = self.db.get_summaries_by_room(room_id)
+
+            # 요약 목록 조회 (using repository)
+            summaries = self.summary_repo.get_by_room(room_id)
             
             if summaries:
                 html = "<h3>📅 최근 요약</h3>"
@@ -2028,21 +2083,20 @@ class MainWindow(QMainWindow):
         if not room_name:
             return
         
-        # 채팅방 생성 (DB + 파일 저장소)
+        # 채팅방 생성 (using repository and storage)
         try:
-            # DB에 채팅방 생성
-            room = self.db.get_room_by_name(room_name)
+            # Repository에서 채팅방 확인
+            room = self.chat_room_repo.get_by_name(room_name)
             if room:
                 QMessageBox.warning(self, "알림", f"'{room_name}' 채팅방이 이미 존재합니다.")
                 return
-            
-            room = self.db.create_room(room_name)
-            
+
+            # Repository에서 채팅방 생성
+            room = self.chat_room_repo.create(room_name)
+
             # 파일 저장소 디렉토리 생성
-            from file_storage import get_storage
-            storage = get_storage()
-            (storage.original_dir / storage._sanitize_name(room_name)).mkdir(parents=True, exist_ok=True)
-            (storage.summary_dir / storage._sanitize_name(room_name)).mkdir(parents=True, exist_ok=True)
+            (self.storage.original_dir / self.storage._sanitize_name(room_name)).mkdir(parents=True, exist_ok=True)
+            (self.storage.summary_dir / self.storage._sanitize_name(room_name)).mkdir(parents=True, exist_ok=True)
             
             QMessageBox.information(self, "생성 완료", f"✅ '{room_name}' 채팅방이 생성되었습니다.\n\n이제 파일을 업로드하세요.")
             self._load_rooms()
@@ -2057,7 +2111,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
             return
 
-        room = self.db.get_room_by_id(self.current_room_id)
+        room = self.chat_room_repo.get_by_id(self.current_room_id)
         if not room:
             QMessageBox.warning(self, "오류", "선택된 채팅방을 찾을 수 없습니다.")
             return
@@ -2075,7 +2129,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self.db.delete_room(self.current_room_id)
+            self.chat_room_repo.delete(self.current_room_id)
             self.current_room_id = None
             self.current_room_file = None
             self.header_label.setText("📊 대시보드")
@@ -2091,9 +2145,9 @@ class MainWindow(QMainWindow):
         if self.current_room_id is None:
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
             return
-        
+
         # 현재 채팅방 이름 가져오기
-        room = self.db.get_room_by_id(self.current_room_id)
+        room = self.chat_room_repo.get_by_id(self.current_room_id)
         if not room:
             QMessageBox.warning(self, "오류", "채팅방을 찾을 수 없습니다.")
             return
@@ -2134,7 +2188,7 @@ class MainWindow(QMainWindow):
             
             # 새로 추가된 채팅방 선택
             if room_id > 0:
-                room = self.db.get_room_by_id(room_id)
+                room = self.chat_room_repo.get_by_id(room_id)
                 if room:
                     self._on_room_selected(room_id, room.file_path or "")
         else:
@@ -2201,7 +2255,7 @@ class MainWindow(QMainWindow):
         # 현재 채팅방 이름 가져오기
         room_name = "Unknown"
         if self.current_room_id:
-            room = self.db.get_room_by_id(self.current_room_id)
+            room = self.chat_room_repo.get_by_id(self.current_room_id)
             if room:
                 room_name = room.name
 
@@ -2279,7 +2333,7 @@ class MainWindow(QMainWindow):
         # 요약 대상 채팅방 이름 조회
         summary_room_name = ""
         if self.summary_source_room_id:
-            room = self.db.get_room_by_id(self.summary_source_room_id)
+            room = self.chat_room_repo.get_by_id(self.summary_source_room_id)
             if room:
                 summary_room_name = room.name
 
@@ -2361,7 +2415,7 @@ class MainWindow(QMainWindow):
         file_rooms = storage.get_all_rooms()
 
         # DB에 이미 있는 채팅방 이름 목록
-        db_rooms = self.db.get_all_rooms()
+        db_rooms = self.chat_room_repo.get_all()
         db_room_names = {r.name for r in db_rooms}
 
         # 파일에는 있지만 DB에 없는 채팅방
@@ -2391,7 +2445,7 @@ class MainWindow(QMainWindow):
         created = 0
         for name in missing:
             try:
-                self.db.create_room(name)
+                self.chat_room_repo.create(name)
                 created += 1
             except Exception:
                 pass
@@ -2473,7 +2527,7 @@ class MainWindow(QMainWindow):
             return
         
         # 현재 채팅방 이름 가져오기
-        room = self.db.get_room_by_id(self.current_room_id)
+        room = self.chat_room_repo.get_by_id(self.current_room_id)
         if not room:
             QMessageBox.warning(self, "채팅방 백업", "채팅방 정보를 찾을 수 없습니다.")
             return
@@ -2714,7 +2768,7 @@ class MainWindow(QMainWindow):
             return
         
         # 현재 채팅방 이름 가져오기
-        room = self.db.get_room_by_id(self.current_room_id)
+        room = self.chat_room_repo.get_by_id(self.current_room_id)
         if not room:
             return
         
@@ -2820,7 +2874,7 @@ class MainWindow(QMainWindow):
         """DB에서 URL 목록 로드."""
         if self.current_room_id is None:
             return {}
-        return self.db.get_urls_by_room(self.current_room_id)
+        return self.url_repo.get_by_room(self.current_room_id)
     
     def _display_url_list(self, urls_all: Dict[str, List[str]], source: str = "DB",
                           urls_recent: Dict[str, List[str]] = None,
@@ -2939,7 +2993,7 @@ class MainWindow(QMainWindow):
         
         self._update_status("URL 로드 중...", "working")
         
-        room = self.db.get_room_by_id(self.current_room_id)
+        room = self.chat_room_repo.get_by_id(self.current_room_id)
         if not room:
             return
         
@@ -2973,7 +3027,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
             return
         
-        room = self.db.get_room_by_id(self.current_room_id)
+        room = self.chat_room_repo.get_by_id(self.current_room_id)
         if not room:
             return
         
@@ -3030,8 +3084,8 @@ class MainWindow(QMainWindow):
         
         if urls_all:
             # DB에 저장 (기존 삭제 후 새로 추가)
-            self.db.clear_urls_by_room(self.current_room_id)
-            self.db.add_urls_batch(self.current_room_id, urls_all)
+            self.url_repo.delete_by_room(self.current_room_id)
+            self.url_repo.create_batch(self.current_room_id, urls_all)
             
             # 파일에 3개로 저장
             paths = self.storage.save_url_lists(room_name, urls_recent, urls_weekly, urls_all)
@@ -3063,7 +3117,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
             return
         
-        room = self.db.get_room_by_id(self.current_room_id)
+        room = self.chat_room_repo.get_by_id(self.current_room_id)
         if not room:
             return
         
@@ -3075,8 +3129,8 @@ class MainWindow(QMainWindow):
         
         if file_urls:
             # DB에 저장 (기존 삭제 후 새로 추가)
-            self.db.clear_urls_by_room(self.current_room_id)
-            self.db.add_urls_batch(self.current_room_id, file_urls)
+            self.url_repo.delete_by_room(self.current_room_id)
+            self.url_repo.create_batch(self.current_room_id, file_urls)
             
             # 기간별 파일도 로드
             urls_recent = self.storage.load_url_list(room_name, "recent")

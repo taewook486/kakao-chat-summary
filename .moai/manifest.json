@@ -2674,9 +2674,9 @@
     },
     ".claude\\agents\\moai\\manager-ddd.md": {
       "provenance": "template_managed",
-      "template_hash": "sha256:9a4c26c28eef223f6413c7a8b46824d040d1a5e9c9456d8ab1b5f3842d6eb59f",
-      "deployed_hash": "sha256:9a4c26c28eef223f6413c7a8b46824d040d1a5e9c9456d8ab1b5f3842d6eb59f",
-      "current_hash": "sha256:9a4c26c28eef223f6413c7a8b46824d040d1a5e9c9456d8ab1b5f3842d6eb59f"
+      "template_hash": "sha256:60ea3596be41b947a714b5049a55ed7e2bc7303e9a3a2ad0774afc3d0db81684",
+      "deployed_hash": "sha256:60ea3596be41b947a714b5049a55ed7e2bc7303e9a3a2ad0774afc3d0db81684",
+      "current_hash": "sha256:60ea3596be41b947a714b5049a55ed7e2bc7303e9a3a2ad0774afc3d0db81684"
     },
     ".claude\\agents\\moai\\manager-docs.md": {
       "provenance": "template_managed",

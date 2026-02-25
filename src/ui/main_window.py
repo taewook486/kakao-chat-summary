@@ -1487,47 +1487,15 @@ class MainWindow(QMainWindow):
         self.statusbar.addPermanentWidget(self.last_sync_label)
     
     def _load_rooms(self):
-        """채팅방 목록 로드."""
-        # 기존 위젯 제거
-        while self.room_list_layout.count() > 1:
-            item = self.room_list_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        # Repository에서 채팅방 목록 로드
-        rooms = self.chat_room_repo.get_all()
-
-        if not rooms:
-            # 채팅방이 없을 때 안내 메시지
-            empty_label = QLabel("📁 채팅방을 추가해주세요")
-            empty_label.setAlignment(Qt.AlignCenter)
-            empty_label.setStyleSheet("color: #888888; padding: 20px;")
-            self.room_list_layout.insertWidget(0, empty_label)
-            return
-
-        for room in rooms:
-            # 메시지 수 조회
-            msg_count = self.message_repo.get_count_by_room(room.id)
-            
-            widget = ChatRoomWidget(
-                room_id=room.id,
-                name=room.name,
-                message_count=msg_count,
-                new_count=0,  # TODO: 새 메시지 수 계산
-                last_sync=room.last_sync_at,
-                file_path=room.file_path
-            )
-            widget.clicked.connect(self._on_room_selected)
-            self.room_list_layout.insertWidget(
-                self.room_list_layout.count() - 1, widget
-            )
+        """채팅방 목록 로드 - ChatRoomListManager에 위임."""
+        if self.room_manager:
+            self.room_manager.load_rooms()
     
     @Slot(int, str)
     def _on_room_selected(self, room_id: int, file_path: str):
         """채팅방 선택 시."""
         self.current_room_id = room_id
         self.current_room_file = file_path
-
 
         # 채팅방 통계 로드 (using service layer)
         stats = self.chat_service.get_room_statistics(room_id)
@@ -1603,7 +1571,87 @@ class MainWindow(QMainWindow):
         # URL 탭 자동 로드
         self._current_url_data = {}
         self._refresh_url_list()
-    
+
+    def _on_room_manager_selected(self, room_id: int, room_name: str, file_path: str):
+        """ChatRoomListManager에서 채팅방 선택 시그널 처리."""
+        self.current_room_id = room_id
+        self.current_room_file = file_path
+
+        # 채팅방 통계 로드 (using service layer)
+        stats = self.chat_service.get_room_statistics(room_id)
+        display_name = room_name or "채팅방"
+
+        if stats:
+            display_name = stats.get('room_name', display_name)
+            self.header_label.setText(f"📊 {display_name}")
+
+            # 대화 기간 서브텍스트
+            first_date = stats.get('first_date')
+            last_date = stats.get('last_date')
+            if first_date and last_date:
+                days_span = (last_date - first_date).days + 1
+                msg_date_sub = f"{first_date} ~ {last_date} ({days_span}일)"
+            else:
+                msg_date_sub = "대화 없음"
+
+            # 대시보드 카드 업데이트
+            total_msg = stats.get('total_messages', 0)
+            self.card_messages.update_card(f"{total_msg:,}", msg_date_sub)
+            self.card_participants.update_card(
+                f"{stats.get('unique_senders', 0)}",
+                "명"
+            )
+
+            # 파일 저장소에서 요약 통계 가져오기
+            from file_storage import get_storage
+            storage = get_storage()
+            available_dates = storage.get_available_dates(display_name)
+            summarized_dates = storage.get_summarized_dates(display_name)
+            total_dates = len(available_dates)
+            done_dates = len(summarized_dates)
+            if total_dates > 0:
+                pct = int(done_dates / total_dates * 100)
+                summary_sub = f"{done_dates}/{total_dates}일 ({pct}%)"
+            else:
+                summary_sub = "대화 데이터 없음"
+            self.card_summaries.update_card(f"{done_dates}", summary_sub)
+
+            # 요약 목록 조회 (using repository)
+            summaries = self.summary_repo.get_by_room(room_id)
+
+            if summaries:
+                html = "<h3>📅 최근 요약</h3>"
+                for s in summaries[:5]:
+                    html += f"<p><b>{s.summary_date}</b> ({s.summary_type})</p>"
+                    html += f"<p>{s.content[:200]}...</p><hr>"
+                self.summary_browser.setHtml(html)
+            else:
+                date_range = ""
+                if stats.get('first_date') and stats.get('last_date'):
+                    date_range = f"<p>📅 대화 기간: {stats['first_date']} ~ {stats['last_date']}</p>"
+
+                self.summary_browser.setHtml(f"""
+                    <h3>📊 채팅방 정보</h3>
+                    <p>💬 총 메시지: <b>{stats.get('total_messages', 0):,}개</b></p>
+                    <p>👥 참여자: <b>{stats.get('unique_senders', 0)}명</b></p>
+                    {date_range}
+                    <hr>
+                    <p style="color: #888;">요약을 생성하려면 '🤖 LLM 요약 생성' 버튼을 클릭하세요.</p>
+                """)
+        else:
+            self.header_label.setText(f"📊 {display_name}")
+            self.summary_browser.setHtml("""
+                <h3>🌟 요약</h3>
+                <p>채팅방 데이터가 없습니다.</p>
+            """)
+
+        # 날짜 탭 업데이트
+        self._update_date_tab_for_room(display_name)
+
+        # URL 탭 자동 로드
+        self._current_url_data = {}
+        self._refresh_url_list()
+
     @Slot()
     def _on_add_room(self):
         """채팅방 만들기."""

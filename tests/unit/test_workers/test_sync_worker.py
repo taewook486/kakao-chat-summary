@@ -117,33 +117,46 @@ class TestSyncWorkerRun:
             mock_db.engine.dispose.assert_called()
 
     def test_run_processes_messages_by_date(
-        self, qapp, sample_chat_file
+        self, qapp, temp_dir
     ):
         """SyncWorker processes messages grouped by date."""
-        worker = SyncWorker(room_id=1, file_path=str(sample_chat_file))
+        # Create a chat file with proper message format that MessageParser expects
+        # Format: [nickname] [AM/PM HH:MM] content
+        chat_content = """KakaoTalk Chat Export
+---------------------
+
+--------------- 2024년 2월 10일 토요일 ---------------
+[홍길동] [오전 10:00] 안녕하세요!
+[김철수] [오전 10:05] 반갑습니다
+
+--------------- 2024년 2월 11일 일요일 ---------------
+[이영희] [오후 2:00] 점심 드셨나요?
+"""
+        chat_file = temp_dir / "test_chat.txt"
+        chat_file.write_text(chat_content, encoding="utf-8")
+
+        worker = SyncWorker(room_id=1, file_path=str(chat_file))
 
         add_messages_calls = []
+        mock_db = MagicMock()
 
-        with patch.object(worker, '_create_worker_db') as mock_create_db:
-            mock_db = MagicMock()
+        def capture_add_messages(room_id, messages):
+            add_messages_calls.append({
+                'room_id': room_id,
+                'count': len(messages),
+                'dates': [m['date'] for m in messages] if messages else []
+            })
+            return len(messages)
 
-            def capture_add_messages(room_id, messages):
-                add_messages_calls.append({
-                    'room_id': room_id,
-                    'count': len(messages),
-                    'dates': [m['date'] for m in messages] if messages else []
-                })
-                return len(messages)
+        mock_db.add_messages.side_effect = capture_add_messages
+        mock_db.update_room_sync_time = MagicMock()
+        mock_db.add_sync_log = MagicMock()
 
-            mock_db.add_messages.side_effect = capture_add_messages
-            mock_db.update_room_sync_time = MagicMock()
-            mock_db.add_sync_log = MagicMock()
-            mock_create_db.return_value = mock_db
-
+        with patch.object(worker, '_create_worker_db', return_value=mock_db):
             worker.run()
 
-        # Verify messages were added
-        assert mock_db.add_messages.call_count >= 1
+        # Verify messages were added (check the captured calls, not mock call_count)
+        assert len(add_messages_calls) >= 1
 
 
 class TestSyncWorkerDatabaseOperations:

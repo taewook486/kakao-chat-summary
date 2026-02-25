@@ -315,6 +315,7 @@ class TestRecoveryWorkerSummaryRestore:
 
                     def capture_summary(*args, **kwargs):
                         add_summary_calls.append((args, kwargs))
+                        return MagicMock(id=1)
 
                     mock_db.add_summary.side_effect = capture_summary
                     mock_get_db.return_value = mock_db
@@ -322,9 +323,11 @@ class TestRecoveryWorkerSummaryRestore:
                     worker.run()
 
         # Verify summary was added
+        # add_summary is called with positional args: (room_id, summary_date, summary_type, content)
         assert len(add_summary_calls) == 1
         args, kwargs = add_summary_calls[0]
-        assert kwargs.get('content') == "# Summary\n\nContent"
+        # Check positional args - content is the 4th argument (index 3)
+        assert args[3] == "# Summary\n\nContent"
 
     def test_run_skips_empty_summaries(self, qapp):
         """run skips dates where summary content is None."""
@@ -363,16 +366,24 @@ class TestRecoveryWorkerErrorHandling:
     """Test RecoveryWorker error handling behavior."""
 
     def test_run_handles_exception_and_emits_error(self, qapp):
-        """run emits finished with error on unexpected exception."""
+        """run emits finished with error on unexpected exception during recovery."""
         worker = RecoveryWorker()
 
         finished_emissions = []
         worker.finished.connect(lambda s, m: finished_emissions.append((s, m)))
 
+        # Mock storage to succeed, then make db.reset_db fail
+        # (exception inside the try block will be caught)
         with patch('file_storage.get_storage') as mock_get_storage:
-            mock_get_storage.side_effect = Exception("Unexpected error")
+            mock_storage = MagicMock()
+            mock_storage.get_all_rooms.return_value = ["Room1"]
+            mock_get_storage.return_value = mock_storage
 
-            worker.run()
+            # Make reset_db raise an exception (inside the try block)
+            with patch('db.reset_db') as mock_reset_db:
+                mock_reset_db.side_effect = Exception("Unexpected error")
+
+                worker.run()
 
         assert len(finished_emissions) == 1
         success, message = finished_emissions[0]

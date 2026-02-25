@@ -541,27 +541,93 @@ class TestDatabaseStatistics:
 class TestDatabaseSingleton:
     """Test Database singleton pattern."""
 
-    def test_get_db_returns_same_instance(self, temp_db):
+    def test_get_db_returns_same_instance(self):
         """Test that get_db returns same instance for same path."""
-        db1 = get_db(str(temp_db))
-        db2 = get_db(str(temp_db))
-        assert db1 is db2
+        import tempfile
+        # Create a temp file path
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path = f.name
 
-    def test_get_db_force_new(self, temp_db):
-        """Test force_new parameter creates new instance."""
-        db1 = get_db(str(temp_db))
-        db2 = get_db(str(temp_db), force_new=True)
-        assert db1 is not db2
-
-    def test_get_db_different_paths(self, temp_db):
-        """Test that different paths create different instances."""
-        db1 = get_db(str(temp_db))
-        db2 = get_db(str(temp_db) + "_other")
-        assert db1 is not db2
-
-    def test_reset_db(self, temp_db):
-        """Test reset_db clears singleton."""
-        db1 = get_db(str(temp_db))
+        # Reset singleton before test
         reset_db()
-        db2 = get_db(str(temp_db))
-        assert db1 is not db2
+        try:
+            db1 = get_db(db_path)
+            db2 = get_db(db_path)
+            assert db1 is db2
+        finally:
+            # Clean up connections
+            reset_db()
+            # Clean up file
+            import os
+            try:
+                os.unlink(db_path)
+            except:
+                pass
+
+    def test_get_db_force_new(self):
+        """Test force_new parameter creates new instance."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path = f.name
+
+        # Reset singleton before test
+        reset_db()
+        try:
+            db1 = get_db(db_path)
+            db2 = get_db(db_path, force_new=True)
+            assert db1 is not db2
+        finally:
+            # Clean up connections
+            reset_db()
+            import os
+            try:
+                os.unlink(db_path)
+            except:
+                pass
+
+    def test_get_db_different_paths(self):
+        """Test that different paths create different instances."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path1 = f.name
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path2 = f.name
+
+        # Reset singleton before test
+        reset_db()
+        try:
+            db1 = get_db(db_path1)
+            db2 = get_db(db_path2)
+            assert db1 is not db2
+        finally:
+            # Clean up connections
+            reset_db()
+            import os
+            for path in [db_path1, db_path2]:
+                try:
+                    os.unlink(path)
+                except:
+                    pass
+
+    def test_reset_db(self):
+        """Test reset_db clears singleton."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path = f.name
+
+        # Reset singleton before test
+        reset_db()
+        try:
+            db1 = get_db(db_path)
+            reset_db()
+            db2 = get_db(db_path)
+            assert db1 is not db2
+        finally:
+            # Clean up connections
+            reset_db()
+            import os
+            try:
+                os.unlink(db_path)
+            except:
+                pass
+

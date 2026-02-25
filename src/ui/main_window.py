@@ -54,6 +54,12 @@ from src.workers.sync_worker import SyncWorker
 from src.workers.summary_worker import SummaryWorker as SummaryGeneratorWorker
 from src.workers.recovery_worker import RecoveryWorker
 
+# Manager layer (extracted from main_window)
+from src.ui.managers.chat_room_list_manager import ChatRoomListManager
+
+# Manager layer (extracted from main_window)
+from src.ui.managers.chat_room_list_manager import ChatRoomListManager
+
 
 class ChatRoomWidget(QFrame):
     """채팅방 아이템 위젯."""
@@ -839,6 +845,20 @@ class MainWindow(QMainWindow):
             chat_room_repo=self.chat_room_repo,
         )
 
+        # Manager layer (extracted from main_window)
+        # @MX:NOTE: ChatRoomListManager handles room list UI and operations
+        self.room_manager = ChatRoomListManager(
+            parent=self,
+            chat_room_repo=self.chat_room_repo,
+            message_repo=self.message_repo,
+            summary_repo=self.summary_repo,
+            chat_service=self.chat_service,
+            storage=self.storage,
+        )
+
+        # Connect manager signals to MainWindow handlers
+        self.room_manager.room_selected.connect(self._on_room_manager_selected)
+
         # 워커 참조 유지
         self.upload_worker: Optional[FileUploadWorker] = None
         self.sync_worker: Optional[SyncWorker] = None
@@ -887,18 +907,8 @@ class MainWindow(QMainWindow):
         """)
         left_layout.addWidget(header)
         
-        # 채팅방 목록
-        self.room_list_widget = QWidget()
-        self.room_list_layout = QVBoxLayout(self.room_list_widget)
-        self.room_list_layout.setContentsMargins(5, 5, 5, 5)
-        self.room_list_layout.setSpacing(5)
-        self.room_list_layout.addStretch()
-        
-        scroll = QScrollArea()
-        scroll.setWidget(self.room_list_widget)
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; background-color: #F5F5F5; }")
+        # 채팅방 목록 (using ChatRoomListManager)
+        scroll = self.room_manager.create_scroll_area()
         left_layout.addWidget(scroll, 1)
         
         # 채팅방 만들기 버튼

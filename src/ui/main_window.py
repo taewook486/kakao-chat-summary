@@ -57,6 +57,7 @@ from src.workers.recovery_worker import RecoveryWorker
 # Manager layer (extracted from main_window)
 from src.ui.managers.chat_room_list_manager import ChatRoomListManager
 from src.ui.managers.menu_bar_manager import MenuBarManager
+from src.ui.managers.summary_manager import SummaryManager
 
 # Coordinator layer (extracted from main_window)
 from src.ui.coordinators.worker_coordinator import WorkerCoordinator, WorkerCallbacks
@@ -223,6 +224,20 @@ class MainWindow(QMainWindow):
         self.menu_manager.settings_triggered.connect(self._on_settings)
         self.menu_manager.about_triggered.connect(self._on_about)
 
+        # @MX:NOTE: SummaryManager handles summary viewing and date navigation
+        self.summary_manager = SummaryManager(
+            parent=self,
+            summary_repo=self.summary_repo,
+            chat_room_repo=self.chat_room_repo,
+            storage=self.storage,
+        )
+
+        # Connect summary manager signals to MainWindow handlers
+        self.summary_manager.summary_requested.connect(self._on_generate_summary)
+
+        # Create placeholder for generate_btn (will be set in _setup_ui)
+        self.generate_btn = None
+
         # 워커 코디네이터 초기화
         self._init_worker_coordinator()
 
@@ -371,240 +386,21 @@ class MainWindow(QMainWindow):
             }
         """)
         
-        # ===== 탭 1: 대시보드 =====
-        dashboard_tab = QWidget()
-        dashboard_layout = QVBoxLayout(dashboard_tab)
-        dashboard_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # 대시보드 카드 영역
-        cards_widget = QWidget()
-        cards_layout = QHBoxLayout(cards_widget)
-        cards_layout.setContentsMargins(10, 5, 10, 5)
-        
+        # Create dashboard cards
         self.card_messages = DashboardCard("총 메시지", "0", "전체 기간", "💬")
         self.card_participants = DashboardCard("참여자", "0", "명", "👥")
         self.card_summaries = DashboardCard("요약", "0", "개 생성됨", "📝")
-        
-        cards_layout.addWidget(self.card_messages)
-        cards_layout.addWidget(self.card_participants)
-        cards_layout.addWidget(self.card_summaries)
-        
-        dashboard_layout.addWidget(cards_widget)
-        
-        # 요약 뷰어 (대시보드)
-        summary_frame = QFrame()
-        summary_frame.setObjectName("summaryViewer")
-        summary_frame.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
-                border: 1px solid #E8E8E8;
-                border-radius: 12px;
-                margin: 10px;
-            }
-        """)
-        summary_layout = QVBoxLayout(summary_frame)
-        
-        summary_header = QHBoxLayout()
-        summary_title = QLabel("📅 최근 요약")
-        summary_title.setStyleSheet("font-size: 16px; font-weight: bold;")
-        summary_header.addWidget(summary_title)
-        
-        self.generate_btn = QPushButton("🤖 LLM 요약 생성")
-        self.generate_btn.clicked.connect(self._on_generate_summary)
-        summary_header.addWidget(self.generate_btn)
-        
-        summary_layout.addLayout(summary_header)
-        
-        self.summary_browser = QTextBrowser()
-        self.summary_browser.setOpenExternalLinks(True)
-        self.summary_browser.setStyleSheet("""
-            QTextBrowser {
-                border: none;
-                background-color: transparent;
-                font-size: 13px;
-            }
-        """)
-        self.summary_browser.setPlaceholderText("채팅방을 선택하면 요약이 표시됩니다.")
-        summary_layout.addWidget(self.summary_browser)
-        
-        dashboard_layout.addWidget(summary_frame, 1)
-        
-        self.tab_widget.addTab(dashboard_tab, "📊 대시보드")
-        
-        # ===== 탭 2: 날짜별 요약 =====
-        detail_tab = QWidget()
-        detail_layout = QVBoxLayout(detail_tab)
-        detail_layout.setContentsMargins(10, 10, 10, 10)
-        detail_layout.setSpacing(10)
-        
-        # 날짜 네비게이션
-        nav_widget = QWidget()
-        nav_widget.setStyleSheet("""
-            QWidget {
-                background-color: #FFFFFF;
-                border: 1px solid #E8E8E8;
-                border-radius: 8px;
-            }
-        """)
-        nav_layout = QHBoxLayout(nav_widget)
-        nav_layout.setContentsMargins(15, 10, 15, 10)
-        
-        # 이전 날짜 버튼
-        self.prev_date_btn = QPushButton("◀ 이전")
-        self.prev_date_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E0E0E0;
-                padding: 8px 20px;
-                border-radius: 6px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #BDBDBD;
-            }
-        """)
-        self.prev_date_btn.clicked.connect(self._on_prev_date)
-        nav_layout.addWidget(self.prev_date_btn)
-        
-        nav_layout.addStretch()
-        
-        # 날짜 선택
-        self.date_edit = QDateEdit()
-        self.date_edit.setCalendarPopup(True)
-        self.date_edit.setDate(QDate.currentDate())
-        self.date_edit.setDisplayFormat("yyyy년 MM월 dd일")
-        self.date_edit.setStyleSheet("""
-            QDateEdit {
-                border: 2px solid #FEE500;
-                border-radius: 6px;
-                padding: 8px 15px;
-                font-size: 14px;
-                font-weight: bold;
-                min-width: 160px;
-            }
-            QDateEdit::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: center right;
-                width: 30px;
-                border: none;
-            }
-            QDateEdit::down-arrow {
-                image: none;
-                width: 0;
-            }
-        """)
-        
-        # QCalendarWidget 스타일링
-        calendar = self.date_edit.calendarWidget()
-        calendar.setStyleSheet("""
-            QCalendarWidget {
-                background-color: #FFFFFF;
-            }
-            QCalendarWidget QToolButton {
-                color: #333;
-                font-size: 14px;
-                font-weight: bold;
-                icon-size: 20px;
-                padding: 5px;
-            }
-            QCalendarWidget QToolButton:hover {
-                background-color: #FEE500;
-                border-radius: 4px;
-            }
-            QCalendarWidget QMenu {
-                background-color: #FFFFFF;
-            }
-            QCalendarWidget QSpinBox {
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QCalendarWidget QWidget#qt_calendar_navigationbar {
-                background-color: #FEE500;
-            }
-            QCalendarWidget QTableView {
-                selection-background-color: #FEE500;
-                selection-color: #000000;
-            }
-            QCalendarWidget QTableView::item:hover {
-                background-color: #FFF9C4;
-            }
-        """)
-        self.date_edit.dateChanged.connect(self._on_date_changed)
-        nav_layout.addWidget(self.date_edit)
-        
-        # 달력 버튼
-        self.calendar_btn = QPushButton("📅")
-        self.calendar_btn.setToolTip("달력에서 선택")
-        self.calendar_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FEE500;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 12px;
-                font-size: 16px;
-            }
-            QPushButton:hover {
-                background-color: #FFD700;
-            }
-        """)
-        self.calendar_btn.clicked.connect(self._show_calendar_dialog)
-        nav_layout.addWidget(self.calendar_btn)
-        
-        nav_layout.addStretch()
-        
-        # 다음 날짜 버튼
-        self.next_date_btn = QPushButton("다음 ▶")
-        self.next_date_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E0E0E0;
-                padding: 8px 20px;
-                border-radius: 6px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #BDBDBD;
-            }
-        """)
-        self.next_date_btn.clicked.connect(self._on_next_date)
-        nav_layout.addWidget(self.next_date_btn)
-        
-        detail_layout.addWidget(nav_widget)
-        
-        # 날짜 정보
-        self.date_info_label = QLabel("📊 날짜를 선택하세요")
-        self.date_info_label.setStyleSheet("""
-            font-size: 12px;
-            color: #666;
-            padding: 5px 10px;
-        """)
-        detail_layout.addWidget(self.date_info_label)
-        
-        # 상세 요약 뷰어
-        detail_frame = QFrame()
-        detail_frame.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
-                border: 1px solid #E8E8E8;
-                border-radius: 12px;
-            }
-        """)
-        detail_frame_layout = QVBoxLayout(detail_frame)
-        
-        self.detail_browser = QTextBrowser()
-        self.detail_browser.setOpenExternalLinks(True)
-        self.detail_browser.setStyleSheet("""
-            QTextBrowser {
-                border: none;
-                background-color: transparent;
-                font-size: 14px;
-                line-height: 1.6;
-            }
-        """)
-        self.detail_browser.setPlaceholderText("채팅방과 날짜를 선택하면 상세 요약이 표시됩니다.")
-        detail_frame_layout.addWidget(self.detail_browser)
-        
-        detail_layout.addWidget(detail_frame, 1)
-        
-        self.tab_widget.addTab(detail_tab, "📅 날짜별 요약")
+
+        # Create summary and date tabs using SummaryManager
+        # @MX:NOTE: SummaryManager creates and manages summary viewing tabs
+        self.summary_manager.create_tab_widgets(
+            self.tab_widget,
+            lambda: self.current_room_id,
+            dashboard_cards=(self.card_messages, self.card_participants, self.card_summaries)
+        )
+
+        # Reference generate_btn for WorkerCoordinator callback
+        self.generate_btn = self.summary_manager.generate_btn
         
         # ===== 탭 3: URL 정보 =====
         url_tab = QWidget()
@@ -840,35 +636,17 @@ class MainWindow(QMainWindow):
 
             # 요약 목록 조회 (using repository)
             summaries = self.summary_repo.get_by_room(room_id)
-            
-            if summaries:
-                html = "<h3>📅 최근 요약</h3>"
-                for s in summaries[:5]:
-                    html += f"<p><b>{s.summary_date}</b> ({s.summary_type})</p>"
-                    html += f"<p>{s.content[:200]}...</p><hr>"
-                self.summary_browser.setHtml(html)
-            else:
-                date_range = ""
-                if stats.get('first_date') and stats.get('last_date'):
-                    date_range = f"<p>📅 대화 기간: {stats['first_date']} ~ {stats['last_date']}</p>"
-                
-                self.summary_browser.setHtml(f"""
-                    <h3>📊 채팅방 정보</h3>
-                    <p>💬 총 메시지: <b>{stats.get('total_messages', 0):,}개</b></p>
-                    <p>👥 참여자: <b>{stats.get('unique_senders', 0)}명</b></p>
-                    {date_range}
-                    <hr>
-                    <p style="color: #888;">요약을 생성하려면 '🤖 LLM 요약 생성' 버튼을 클릭하세요.</p>
-                """)
+
+            # @MX:NOTE: Use SummaryManager to display room summaries
+            self.summary_manager.display_room_summaries(room_id, stats, room_name)
         else:
             self.header_label.setText(f"📊 채팅방 #{room_id}")
-            self.summary_browser.setHtml("""
-                <h3>🌟 요약</h3>
-                <p>채팅방 데이터가 없습니다.</p>
-            """)
-        
+            # @MX:NOTE: Use SummaryManager to display room summaries
+            self.summary_manager.display_room_summaries(room_id, {}, room_name)
+
         # 날짜 탭 업데이트
-        self._update_date_tab_for_room(room_name)
+        # @MX:NOTE: Use SummaryManager to update date tab
+        self.summary_manager.update_date_tab_for_room(room_name)
         
         # URL 탭 자동 로드
         self._current_url_data = {}
@@ -921,34 +699,16 @@ class MainWindow(QMainWindow):
             # 요약 목록 조회 (using repository)
             summaries = self.summary_repo.get_by_room(room_id)
 
-            if summaries:
-                html = "<h3>📅 최근 요약</h3>"
-                for s in summaries[:5]:
-                    html += f"<p><b>{s.summary_date}</b> ({s.summary_type})</p>"
-                    html += f"<p>{s.content[:200]}...</p><hr>"
-                self.summary_browser.setHtml(html)
-            else:
-                date_range = ""
-                if stats.get('first_date') and stats.get('last_date'):
-                    date_range = f"<p>📅 대화 기간: {stats['first_date']} ~ {stats['last_date']}</p>"
-
-                self.summary_browser.setHtml(f"""
-                    <h3>📊 채팅방 정보</h3>
-                    <p>💬 총 메시지: <b>{stats.get('total_messages', 0):,}개</b></p>
-                    <p>👥 참여자: <b>{stats.get('unique_senders', 0)}명</b></p>
-                    {date_range}
-                    <hr>
-                    <p style="color: #888;">요약을 생성하려면 '🤖 LLM 요약 생성' 버튼을 클릭하세요.</p>
-                """)
+            # @MX:NOTE: Use SummaryManager to display room summaries
+            self.summary_manager.display_room_summaries(room_id, stats, display_name)
         else:
             self.header_label.setText(f"📊 {display_name}")
-            self.summary_browser.setHtml("""
-                <h3>🌟 요약</h3>
-                <p>채팅방 데이터가 없습니다.</p>
-            """)
+            # @MX:NOTE: Use SummaryManager to display room summaries
+            self.summary_manager.display_room_summaries(room_id, {}, display_name)
 
         # 날짜 탭 업데이트
-        self._update_date_tab_for_room(display_name)
+        # @MX:NOTE: Use SummaryManager to update date tab
+        self.summary_manager.update_date_tab_for_room(display_name)
 
         # URL 탭 자동 로드
         self._current_url_data = {}
@@ -1455,219 +1215,11 @@ class MainWindow(QMainWindow):
             else:
                 self._update_status("복원 실패", "error")
                 QMessageBox.warning(self, "복원 실패", "❌ 복원 중 오류가 발생했습니다.")
-    
-    # ===== 날짜별 요약 탭 메서드 =====
-    
-    @Slot()
-    def _show_calendar_dialog(self):
-        """달력 다이얼로그 표시."""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("📅 날짜 선택")
-        dialog.setFixedSize(350, 300)
-        
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(10, 10, 10, 10)
-        
-        # 달력 위젯
-        calendar = QCalendarWidget()
-        calendar.setSelectedDate(self.date_edit.date())
-        calendar.setStyleSheet("""
-            QCalendarWidget {
-                background-color: #FFFFFF;
-            }
-            QCalendarWidget QToolButton {
-                color: #333;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 5px;
-            }
-            QCalendarWidget QToolButton:hover {
-                background-color: #FEE500;
-                border-radius: 4px;
-            }
-            QCalendarWidget QWidget#qt_calendar_navigationbar {
-                background-color: #FEE500;
-                padding: 5px;
-            }
-            QCalendarWidget QTableView {
-                selection-background-color: #FEE500;
-                selection-color: #000000;
-                font-size: 12px;
-            }
-            QCalendarWidget QTableView::item:hover {
-                background-color: #FFF9C4;
-            }
-        """)
-        layout.addWidget(calendar)
-        
-        # 버튼
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        today_btn = QPushButton("오늘")
-        today_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #5B9BD5;
-                color: white;
-                padding: 8px 20px;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #4A8BC4;
-            }
-        """)
-        today_btn.clicked.connect(lambda: calendar.setSelectedDate(QDate.currentDate()))
-        btn_layout.addWidget(today_btn)
-        
-        select_btn = QPushButton("선택")
-        select_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FEE500;
-                padding: 8px 20px;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #FFD700;
-            }
-        """)
-        select_btn.clicked.connect(dialog.accept)
-        btn_layout.addWidget(select_btn)
-        
-        layout.addLayout(btn_layout)
-        
-        # 더블클릭으로도 선택 가능
-        calendar.activated.connect(dialog.accept)
-        
-        if dialog.exec() == QDialog.Accepted:
-            self.date_edit.setDate(calendar.selectedDate())
-    
-    @Slot()
-    def _on_prev_date(self):
-        """이전 날짜로 이동."""
-        current = self.date_edit.date()
-        self.date_edit.setDate(current.addDays(-1))
-    
-    @Slot()
-    def _on_next_date(self):
-        """다음 날짜로 이동."""
-        current = self.date_edit.date()
-        self.date_edit.setDate(current.addDays(1))
-    
-    @Slot(QDate)
-    def _on_date_changed(self, date: QDate):
-        """날짜 변경 시 요약 로드."""
-        if self.current_room_id is None:
-            self.detail_browser.setHtml("""
-                <div style="text-align: center; padding: 50px; color: #888;">
-                    <p style="font-size: 48px;">📁</p>
-                    <p style="font-size: 16px;">먼저 채팅방을 선택하세요</p>
-                </div>
-            """)
-            return
-        
-        # 현재 채팅방 이름 가져오기
-        room = self.chat_room_repo.get_by_id(self.current_room_id)
-        if not room:
-            return
-        
-        room_name = room.name
-        date_str = date.toString("yyyy-MM-dd")
-        
-        # 파일 저장소에서 데이터 로드
-        from file_storage import get_storage
-        storage = get_storage()
-        
-        # 원본 메시지 로드
-        messages = storage.load_daily_original(room_name, date_str)
-        
-        # 요약 로드
-        summary = storage.load_daily_summary(room_name, date_str)
-        
-        # 사용 가능한 날짜 목록
-        available_dates = storage.get_available_dates(room_name)
-        summarized_dates = storage.get_summarized_dates(room_name)
-        
-        # 날짜 정보 업데이트
-        has_original = date_str in available_dates
-        has_summary = date_str in summarized_dates
-        
-        status_parts = []
-        if has_original:
-            status_parts.append(f"💬 {len(messages)}개 메시지")
-        if has_summary:
-            status_parts.append("✅ 요약 완료")
-        else:
-            status_parts.append("⚠️ 요약 없음")
-        
-        self.date_info_label.setText(f"📅 {date_str} | " + " | ".join(status_parts))
-        
-        # HTML 생성
-        if not has_original and not has_summary:
-            self.detail_browser.setHtml(f"""
-                <div style="text-align: center; padding: 50px; color: #888;">
-                    <p style="font-size: 48px;">📭</p>
-                    <p style="font-size: 16px;">{date_str}에는 대화 기록이 없습니다</p>
-                    <p style="font-size: 12px; color: #AAA;">다른 날짜를 선택해보세요</p>
-                </div>
-            """)
-            return
-        
-        html = f"<h2>📅 {room_name} - {date_str}</h2>"
-        
-        # 요약 표시
-        if summary:
-            # 메타데이터 제거하고 본문만 추출
-            summary_lines = summary.split('\n')
-            content_start = 0
-            for i, line in enumerate(summary_lines):
-                if line.strip() == '---' and i > 0:
-                    content_start = i + 1
-                    break
-            
-            # 푸터 제거
-            content_lines = []
-            for line in summary_lines[content_start:]:
-                if line.strip().startswith('_Generated'):
-                    break
-                content_lines.append(line)
-            
-            summary_content = '\n'.join(content_lines)
-            html += f"""
-                <div style="background-color: #FFF8E1; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #FFC107;">
-                    <h3 style="margin-top: 0;">📝 AI 요약</h3>
-                    <div style="line-height: 1.8;">{summary_content.replace(chr(10), '<br>')}</div>
-                </div>
-            """
-        else:
-            html += """
-                <div style="background-color: #FFEBEE; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #F44336;">
-                    <p style="margin: 0; color: #C62828;">⚠️ 이 날짜의 요약이 아직 생성되지 않았습니다.</p>
-                    <p style="margin: 5px 0 0 0; color: #888; font-size: 12px;">대시보드 탭에서 '🤖 LLM 요약 생성' 버튼을 클릭하세요.</p>
-                </div>
-            """
-        
-        self.detail_browser.setHtml(html)
-    
-    def _update_date_tab_for_room(self, room_name: str):
-        """채팅방 선택 시 날짜 탭 정보 업데이트."""
-        from file_storage import get_storage
-        storage = get_storage()
-        
-        available_dates = storage.get_available_dates(room_name)
-        
-        if available_dates:
-            # 가장 최근 날짜로 설정
-            latest_date = available_dates[-1]
-            year, month, day = map(int, latest_date.split('-'))
-            self.date_edit.setDate(QDate(year, month, day))
-        else:
-            self.date_edit.setDate(QDate.currentDate())
-        
-        # 날짜 변경 이벤트 트리거
-        self._on_date_changed(self.date_edit.date())
-    
+
     # ===== URL 정보 탭 메서드 =====
+    # @MX:NOTE: Date-related methods (_show_calendar_dialog, _on_prev_date, _on_next_date,
+    #          _on_date_changed, _update_date_tab_for_room) are now handled by SummaryManager
+
     
     def _load_url_from_db(self) -> Dict[str, List[str]]:
         """DB에서 URL 목록 로드."""

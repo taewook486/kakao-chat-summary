@@ -58,6 +58,9 @@ from src.workers.recovery_worker import RecoveryWorker
 from src.ui.managers.chat_room_list_manager import ChatRoomListManager
 from src.ui.managers.menu_bar_manager import MenuBarManager
 
+# Coordinator layer (extracted from main_window)
+from src.ui.coordinators.worker_coordinator import WorkerCoordinator, WorkerCallbacks
+
 # Dialogs (externalized to src/ui/dialogs/)
 from src.ui.dialogs.summary_options_dialog import SummaryOptionsDialog
 from src.ui.dialogs.create_room_dialog import CreateRoomDialog
@@ -472,20 +475,35 @@ class MainWindow(QMainWindow):
         self.menu_manager.settings_triggered.connect(self._on_settings)
         self.menu_manager.about_triggered.connect(self._on_about)
 
-        # 워커 참조 유지
-        self.upload_worker: Optional[FileUploadWorker] = None
-        self.sync_worker: Optional[SyncWorker] = None
-        self.summary_worker: Optional[SummaryWorker] = None
-        self.recovery_worker: Optional[RecoveryWorker] = None
-        self.progress_dialog: Optional[SummaryProgressDialog] = None
-        self.summary_progress_widget: Optional[SummaryProgressWidget] = None
-        self._summary_in_progress: bool = False
-        self.summary_source_room_id: Optional[int] = None
-        
+        # 워커 코디네이터 초기화
+        self._init_worker_coordinator()
+
         self._setup_ui()
         self._setup_menu()
         self._setup_statusbar()
         self._load_rooms()
+
+    def _init_worker_coordinator(self):
+        """워커 코디네이터 초기화."""
+        callbacks = WorkerCallbacks(
+            update_status=self._update_status,
+            refresh_rooms=self._load_rooms,
+            select_room=self._on_room_selected,
+            set_generate_button_enabled=lambda enabled: self.generate_btn.setEnabled(enabled),
+            show_message=self._show_message
+        )
+        self.worker_coordinator = WorkerCoordinator(
+            parent=self,
+            callbacks=callbacks,
+            statusbar=None  # Will be set after statusbar creation
+        )
+
+    def _show_message(self, title: str, message: str, msg_type: str):
+        """Show message box (callback for WorkerCoordinator)."""
+        if msg_type == "warning":
+            QMessageBox.warning(self, title, message)
+        else:
+            QMessageBox.information(self, title, message)
     
     def _setup_ui(self):
         """UI 구성."""
@@ -1006,18 +1024,21 @@ class MainWindow(QMainWindow):
         """상태바 구성."""
         self.statusbar = QStatusBar()
         self.setStatusBar(self.statusbar)
-        
+
         # 작업 상태 (왼쪽)
-        self.task_status = QLabel("✅ 준비")
+        self.task_status = QLabel("준비")
         self.task_status.setStyleSheet("font-size: 12px; padding: 0 10px;")
         self.statusbar.addWidget(self.task_status)
-        
+
         self.statusbar.addPermanentWidget(QLabel(""))  # 스페이서
-        
+
         # 마지막 작업 시간
         self.last_sync_label = QLabel("")
         self.last_sync_label.setStyleSheet("color: #666; font-size: 11px;")
         self.statusbar.addPermanentWidget(self.last_sync_label)
+
+        # 워커 코디네이터에 statusbar 설정
+        self.worker_coordinator._statusbar = self.statusbar
     
     def _load_rooms(self):
         """채팅방 목록 로드 - ChatRoomListManager에 위임."""
@@ -1264,68 +1285,33 @@ class MainWindow(QMainWindow):
         if not room:
             QMessageBox.warning(self, "오류", "채팅방을 찾을 수 없습니다.")
             return
-        
+
         # 파일 업로드 다이얼로그
         dialog = UploadFileDialog(room.name, self)
         if dialog.exec() != QDialog.Accepted:
             return
-        
+
         file_path = dialog.file_path
         if not file_path:
             return
-        
-        # 프로그레스 표시
-        self._update_status("파일 업로드 중...", "working")
-        self.generate_btn.setEnabled(False)
-        
-        # 백그라운드 워커 시작
-        self.upload_worker = FileUploadWorker(file_path, room.name)
-        self.upload_worker.progress.connect(self._on_upload_progress)
-        self.upload_worker.finished.connect(self._on_upload_finished)
-        self.upload_worker.start()
-    
-    @Slot(int, str)
-    def _on_upload_progress(self, progress: int, message: str):
-        """업로드 진행 상황."""
-        self._update_status(f"{message} ({progress}%)", "working")
-    
-    @Slot(bool, str, int)
-    def _on_upload_finished(self, success: bool, message: str, room_id: int):
-        """업로드 완료."""
-        self.generate_btn.setEnabled(True)
-        
-        if success:
-            self._update_status("업로드 완료", "success")
-            QMessageBox.information(self, "업로드 완료", message)
-            self._load_rooms()
-            
-            # 새로 추가된 채팅방 선택
-            if room_id > 0:
-                room = self.chat_room_repo.get_by_id(room_id)
-                if room:
-                    self._on_room_selected(room_id, room.file_path or "")
-        else:
-            self._update_status("업로드 실패", "error")
-            QMessageBox.warning(self, "업로드 실패", message)
-    
+
+        # 워커 코디네이터를 통한 업로드 시작
+        self.worker_coordinator.start_upload(file_path, room.name)
+
     @Slot()
     def _on_manual_sync(self):
         """수동 동기화."""
         if self.current_room_id is None:
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
             return
-        
+
         if not self.current_room_file or not Path(self.current_room_file).exists():
             QMessageBox.warning(self, "알림", "파일 경로가 유효하지 않습니다.")
             return
-        
-        # 백그라운드 동기화 시작
-        self._update_status("동기화 중...", "working")
-        self.sync_worker = SyncWorker(self.current_room_id, self.current_room_file)
-        self.sync_worker.progress.connect(lambda p, m: self._update_status(f"{m} ({p}%)", "working"))
-        self.sync_worker.finished.connect(self._on_sync_finished)
-        self.sync_worker.start()
-    
+
+        # 워커 코디네이터를 통한 동기화 시작
+        self.worker_coordinator.start_sync(self.current_room_id, self.current_room_file)
+
     @Slot(bool, str)
     def _on_sync_finished(self, success: bool, message: str):
         """동기화 완료."""
@@ -1363,6 +1349,11 @@ class MainWindow(QMainWindow):
 
         if self.current_room_id is None:
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
+            return
+
+        # Check if summary already in progress via coordinator
+        if self.worker_coordinator.summary_in_progress:
+            QMessageBox.warning(self, "알림", "이미 요약이 진행 중입니다.\n완료 후 다시 시도하세요.")
             return
 
         # 현재 채팅방 이름 가져오기
@@ -1404,108 +1395,55 @@ class MainWindow(QMainWindow):
         selected_llm = dialog.selected_llm
         llm_display_name = dialog.llm_combo.currentText()
 
-        # 상태 플래그 설정
-        self._summary_in_progress = True
-        self.summary_source_room_id = self.current_room_id
-        self.generate_btn.setEnabled(False)
-
         # 상태바에 프로그레스 위젯 삽입
         self.summary_progress_widget = SummaryProgressWidget(
             self, llm_name=llm_display_name, room_name=room_name
         )
-        self.statusbar.insertPermanentWidget(0, self.summary_progress_widget)
-        self.summary_progress_widget.show()
 
-        self._update_status(f"⏳ {llm_display_name} 요약 생성 중...", "working")
-
-        # 백그라운드 워커 시작
-        self.summary_worker = SummaryGeneratorWorker(
-            self.current_room_id,
-            summary_type,
-            self.current_room_file,
-            room_name,
-            skip_existing,
-            selected_llm
+        # 워커 코디네이터를 통한 요약 시작
+        self.worker_coordinator.start_summary(
+            room_id=self.current_room_id,
+            room_name=room_name,
+            file_path=self.current_room_file,
+            summary_type=summary_type,
+            skip_existing=skip_existing,
+            llm_provider=selected_llm,
+            progress_widget=self.summary_progress_widget
         )
 
-        # 시그널 연결
-        self.summary_worker.progress.connect(self.summary_progress_widget.update_progress)
-        self.summary_worker.progress.connect(lambda p, m: self._update_status(m, "working"))
-        self.summary_worker.finished.connect(self._on_summary_finished)
-        self.summary_progress_widget.cancel_requested.connect(self.summary_worker.cancel)
+        # 코디네이터 시그널 연결 (UI 업데이트용)
+        self.worker_coordinator.summary_finished.connect(
+            lambda success, result: self._handle_summary_result(success, result, room_name)
+        )
 
-        # 워커 시작
-        self.summary_worker.start()
-    
-    @Slot(bool, str)
-    def _on_summary_finished(self, success: bool, result: str):
-        """요약 생성 완료."""
-        self.generate_btn.setEnabled(True)
-        self._summary_in_progress = False
-
-        # 요약 대상 채팅방 이름 조회
-        summary_room_name = ""
-        if self.summary_source_room_id:
-            room = self.chat_room_repo.get_by_id(self.summary_source_room_id)
-            if room:
-                summary_room_name = room.name
-
-        # 상태바 프로그레스 위젯 제거
-        if self.summary_progress_widget:
-            self.statusbar.removeWidget(self.summary_progress_widget)
-            self.summary_progress_widget.deleteLater()
-            self.summary_progress_widget = None
-
+    def _handle_summary_result(self, success: bool, result: str, room_name: str):
+        """요약 결과 처리 (UI 업데이트)."""
         if success:
             # 현재 보고 있는 채팅방이 요약 대상 채팅방과 같으면 대시보드 갱신
-            if self.current_room_id == self.summary_source_room_id:
-                self._update_status("요약 생성 완료", "success")
+            source_room_id = self.worker_coordinator.summary_source_room_id
+            if self.current_room_id == source_room_id:
                 self.summary_browser.setHtml(f"""
-                    <h3>📝 AI 요약</h3>
+                    <h3>AI 요약</h3>
                     <div style="line-height: 1.6;">{result.replace(chr(10), '<br>')}</div>
                 """)
                 # 대시보드 통계도 갱신
                 if self.current_room_id:
                     self._on_room_selected(self.current_room_id, self.current_room_file or "")
-            else:
-                self._update_status(f"✅ [{summary_room_name}] 요약 완료", "success")
-        else:
-            self._update_status(f"요약 생성 실패: {summary_room_name}", "error")
-            QMessageBox.warning(self, "요약 실패", result)
 
-        self.summary_source_room_id = None
-    
     @Slot()
     def _on_recovery(self):
-        """DB 복구."""
-        # 확인 다이얼로그
-        reply = QMessageBox.question(
-            self, "DB 복구",
-            "⚠️ 주의: 기존 DB를 삭제하고 파일 저장소에서 복구합니다.\n\n"
-            "data/original 및 data/summary 폴더의 파일을 기반으로\n"
-            "새로운 데이터베이스를 생성합니다.\n\n"
-            "계속하시겠습니까?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        
-        if reply != QMessageBox.Yes:
-            return
-        
-        # 프로그레스 표시
-        self._update_status("DB 복구 중...", "working")
-        self.generate_btn.setEnabled(False)
-        
-        # 복구 워커 시작
-        self.recovery_worker = RecoveryWorker()
-        self.recovery_worker.progress.connect(lambda p, m: self._update_status(f"{m} ({p}%)", "working"))
-        self.recovery_worker.finished.connect(self._on_recovery_finished)
-        self.recovery_worker.start()
-    
-    @Slot(bool, str)
-    def _on_recovery_finished(self, success: bool, message: str):
-        """복구 완료."""
-        self.generate_btn.setEnabled(True)
+        """DB 복구 - 워커 코디네이터에 위임."""
+        if self.worker_coordinator.start_recovery():
+            # 코디네이터 시그널 연결 (DB 재연결용)
+            self.worker_coordinator.recovery_finished.connect(self._handle_recovery_result)
+
+    def _handle_recovery_result(self, success: bool, message: str):
+        """복구 결과 처리 (DB 재연결)."""
+        if success:
+            # DB 재연결 및 UI 새로고침
+            from db import get_db
+            self.db = get_db(force_new=True)
+            self._load_rooms()
         
         if success:
             self._update_status("DB 복구 완료", "success")

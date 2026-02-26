@@ -56,6 +56,7 @@ from src.workers.recovery_worker import RecoveryWorker
 
 # Manager layer (extracted from main_window)
 from src.ui.managers.chat_room_list_manager import ChatRoomListManager
+from src.ui.managers.menu_bar_manager import MenuBarManager
 
 # Dialogs (externalized to src/ui/dialogs/)
 from src.ui.dialogs.summary_options_dialog import SummaryOptionsDialog
@@ -453,6 +454,23 @@ class MainWindow(QMainWindow):
 
         # Connect manager signals to MainWindow handlers
         self.room_manager.room_selected.connect(self._on_room_manager_selected)
+
+        # @MX:NOTE: MenuBarManager handles menu creation and action signals
+        self.menu_manager = MenuBarManager(self)
+
+        # Connect menu manager signals to MainWindow handlers
+        self.menu_manager.add_room_triggered.connect(self._on_add_room)
+        self.menu_manager.delete_room_triggered.connect(self._on_delete_room)
+        self.menu_manager.exit_triggered.connect(self.close)
+        self.menu_manager.manual_sync_triggered.connect(self._on_manual_sync)
+        self.menu_manager.generate_summary_triggered.connect(self._on_generate_summary)
+        self.menu_manager.backup_triggered.connect(self._on_backup)
+        self.menu_manager.room_backup_triggered.connect(self._on_room_backup)
+        self.menu_manager.restore_from_backup_triggered.connect(self._on_restore_from_backup)
+        self.menu_manager.recovery_triggered.connect(self._on_recovery)
+        self.menu_manager.room_recovery_triggered.connect(self._on_room_recovery)
+        self.menu_manager.settings_triggered.connect(self._on_settings)
+        self.menu_manager.about_triggered.connect(self._on_about)
 
         # 워커 참조 유지
         self.upload_worker: Optional[FileUploadWorker] = None
@@ -981,88 +999,8 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(splitter)
     
     def _setup_menu(self):
-        """메뉴바 구성."""
-        menubar = self.menuBar()
-        
-        # 파일 메뉴
-        file_menu = menubar.addMenu("파일")
-        
-        add_action = QAction("채팅방 추가...", self)
-        add_action.setShortcut("Ctrl+O")
-        add_action.triggered.connect(self._on_add_room)
-        file_menu.addAction(add_action)
-
-        delete_room_action = QAction("채팅방 삭제...", self)
-        delete_room_action.triggered.connect(self._on_delete_room)
-        file_menu.addAction(delete_room_action)
-
-        file_menu.addSeparator()
-        
-        exit_action = QAction("종료", self)
-        exit_action.setShortcut("Ctrl+Q")
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # 도구 메뉴
-        tools_menu = menubar.addMenu("도구")
-        
-        sync_action = QAction("지금 동기화", self)
-        sync_action.setShortcut("Ctrl+R")
-        sync_action.triggered.connect(self._on_manual_sync)
-        tools_menu.addAction(sync_action)
-        
-        summary_action = QAction("LLM 요약 생성", self)
-        summary_action.setShortcut("Ctrl+G")
-        summary_action.triggered.connect(self._on_generate_summary)
-        tools_menu.addAction(summary_action)
-        
-        tools_menu.addSeparator()
-
-        # === 백업/복원 (스냅샷 관리) ===
-        backup_action = QAction("💾 전체 백업...", self)
-        backup_action.setShortcut("Ctrl+B")
-        backup_action.setToolTip("DB, 원본 대화, 요약 파일을 타임스탬프 디렉터리에 백업")
-        backup_action.triggered.connect(self._on_backup)
-        tools_menu.addAction(backup_action)
-
-        room_backup_action = QAction("💾 채팅방 백업...", self)
-        room_backup_action.setToolTip("선택된 채팅방의 파일만 백업")
-        room_backup_action.triggered.connect(self._on_room_backup)
-        tools_menu.addAction(room_backup_action)
-
-        tools_menu.addSeparator()
-
-        restore_action = QAction("📂 백업에서 복원...", self)
-        restore_action.setToolTip("백업 디렉터리에서 선택하여 복원")
-        restore_action.triggered.connect(self._on_restore_from_backup)
-        tools_menu.addAction(restore_action)
-
-        tools_menu.addSeparator()
-
-        # === 파일↔DB 동기화 ===
-        rebuild_action = QAction("🔄 파일에서 DB 재구축...", self)
-        rebuild_action.setToolTip("기존 DB를 삭제하고 data/original, data/summary 파일에서 재구축")
-        rebuild_action.triggered.connect(self._on_recovery)
-        tools_menu.addAction(rebuild_action)
-
-        add_missing_action = QAction("🔄 누락 채팅방 DB 추가...", self)
-        add_missing_action.setToolTip("파일 디렉터리에 있지만 DB에 없는 채팅방을 추가 (비파괴적)")
-        add_missing_action.triggered.connect(self._on_room_recovery)
-        tools_menu.addAction(add_missing_action)
-
-        tools_menu.addSeparator()
-
-        settings_action = QAction("설정...", self)
-        settings_action.setShortcut("Ctrl+,")
-        settings_action.triggered.connect(self._on_settings)
-        tools_menu.addAction(settings_action)
-        
-        # 도움말 메뉴
-        help_menu = menubar.addMenu("도움말")
-        
-        about_action = QAction("정보", self)
-        about_action.triggered.connect(self._on_about)
-        help_menu.addAction(about_action)
+        """메뉴바 구성 - MenuBarManager에 위임."""
+        self.menu_manager.setup_menu(self)
     
     def _setup_statusbar(self):
         """상태바 구성."""

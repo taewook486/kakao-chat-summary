@@ -775,7 +775,7 @@ class MainWindow(QMainWindow):
             self.current_room_id = None
             self.current_room_file = None
             self.header_label.setText("📊 대시보드")
-            self.summary_browser.setHtml("<p style='color: #888;'>채팅방을 선택하세요.</p>")
+            self.summary_manager.clear_summaries()
             self._load_rooms()
             self._update_status(f"'{room_name}' 채팅방 삭제 완료", "success")
         except Exception as e:
@@ -851,12 +851,12 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_generate_summary(self):
         """요약 생성."""
-        if self._summary_in_progress:
-            QMessageBox.warning(self, "알림", "이미 요약이 진행 중입니다.\n완료 후 다시 시도하세요.")
-            return
-
         if self.current_room_id is None:
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
+            return
+
+        if not self.current_room_file:
+            QMessageBox.warning(self, "알림", "선택된 채팅방에 파일이 없습니다.\n먼저 파일을 업로드해주세요.")
             return
 
         # Check if summary already in progress via coordinator
@@ -930,13 +930,14 @@ class MainWindow(QMainWindow):
             # 현재 보고 있는 채팅방이 요약 대상 채팅방과 같으면 대시보드 갱신
             source_room_id = self.worker_coordinator.summary_source_room_id
             if self.current_room_id == source_room_id:
-                self.summary_browser.setHtml(f"""
-                    <h3>AI 요약</h3>
-                    <div style="line-height: 1.6;">{result.replace(chr(10), '<br>')}</div>
-                """)
+                # SummaryManager를 통해 요약 표시
+                self.summary_manager.display_room_summaries(
+                    self.current_room_id,
+                    {},  # 통계는 빈 dict 전달 (필요시 조회)
+                    room_name
+                )
                 # 대시보드 통계도 갱신
-                if self.current_room_id:
-                    self._on_room_selected(self.current_room_id, self.current_room_file or "")
+                self._on_room_selected(self.current_room_id, self.current_room_file or "")
 
     @Slot()
     def _on_recovery(self):
@@ -1436,7 +1437,7 @@ class MainWindow(QMainWindow):
         if urls_all:
             # DB에 저장 (기존 삭제 후 새로 추가)
             self.url_repo.delete_by_room(self.current_room_id)
-            self.url_repo.create_batch(self.current_room_id, urls_all)
+            self.url_repo.add_urls_batch(self.current_room_id, urls_all)
             
             # 파일에 3개로 저장
             paths = self.storage.save_url_lists(room_name, urls_recent, urls_weekly, urls_all)
@@ -1481,7 +1482,7 @@ class MainWindow(QMainWindow):
         if file_urls:
             # DB에 저장 (기존 삭제 후 새로 추가)
             self.url_repo.delete_by_room(self.current_room_id)
-            self.url_repo.create_batch(self.current_room_id, file_urls)
+            self.url_repo.add_urls_batch(self.current_room_id, file_urls)
             
             # 기간별 파일도 로드
             urls_recent = self.storage.load_url_list(room_name, "recent")
@@ -1510,7 +1511,7 @@ class MainWindow(QMainWindow):
     
     def closeEvent(self, event):
         """앱 종료 시 진행 중인 요약 처리."""
-        if self._summary_in_progress and self.summary_worker:
+        if self.worker_coordinator.summary_in_progress:
             reply = QMessageBox.question(
                 self, "종료 확인",
                 "요약이 진행 중입니다. 취소하고 종료하시겠습니까?",
@@ -1520,8 +1521,7 @@ class MainWindow(QMainWindow):
             if reply != QMessageBox.Yes:
                 event.ignore()
                 return
-            self.summary_worker.cancel()
-            self.summary_worker.wait(5000)
+            self.worker_coordinator.cancel_summary()
         event.accept()
 
     @Slot()

@@ -79,9 +79,9 @@ class SummaryOptionsDialog(QDialog):
 
         # LLM options
         llm_items = [
-            ("glm", "Z.AI GLM-4.7 (Default)"),
-            ("chatgpt", "OpenAI GPT-4o-mini"),
-            ("minimax", "MiniMax M2.1"),
+            ("glm", "Zhipu GLM-5 (Default)"),
+            ("chatgpt", "OpenAI GPT-4o"),
+            ("minimax", "MiniMax M2.5"),
             ("perplexity", "Perplexity Sonar"),
         ]
 

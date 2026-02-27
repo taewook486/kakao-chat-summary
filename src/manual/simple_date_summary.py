@@ -46,21 +46,21 @@ class LLMProvider:
 
 LLM_PROVIDERS: Dict[str, LLMProvider] = {
     "glm": LLMProvider(
-        name="Z.AI GLM",
+        name="Zhipu GLM",
         api_url="https://api.z.ai/api/coding/paas/v4/chat/completions",
-        model="glm-4.7",
+        model="glm-5",
         env_key="ZAI_API_KEY"
     ),
     "chatgpt": LLMProvider(
         name="OpenAI ChatGPT",
         api_url="https://api.openai.com/v1/chat/completions",
-        model="gpt-4o-mini",
+        model="gpt-4o",
         env_key="OPENAI_API_KEY"
     ),
     "minimax": LLMProvider(
-        name="MiniMax Coding Plan",
-        api_url="https://api.minimax.io/v1/chat/completions",
-        model="MiniMax-M2.1",
+        name="MiniMax",
+        api_url="https://api.minimax.chat/v1/text/chatcompletion_v2",
+        model="MiniMax-M2.5",
         env_key="MINIMAX_API_KEY"
     ),
     "perplexity": LLMProvider(

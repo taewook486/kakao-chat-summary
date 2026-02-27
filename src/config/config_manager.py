@@ -22,31 +22,31 @@ class ConfigManager:
     _lock: Lock = Lock()
     _initialized: bool = False
 
-    # LLM provider configurations
+    # LLM provider configurations (Updated 2026-02-27)
     LLM_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "glm": {
-            "name": "Z.AI GLM",
+            "name": "Zhipu GLM",
             "env_key": "ZAI_API_KEY",
-            "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-            "model": "glm-4-flash",
+            "base_url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
+            "model": "glm-5",  # Latest flagship (February 2026)
         },
         "chatgpt": {
-            "name": "OpenAI GPT-4o-mini",
+            "name": "OpenAI GPT",
             "env_key": "OPENAI_API_KEY",
             "base_url": "https://api.openai.com/v1/chat/completions",
-            "model": "gpt-4o-mini",
+            "model": "gpt-4o",  # Stable production model
         },
         "minimax": {
             "name": "MiniMax",
             "env_key": "MINIMAX_API_KEY",
             "base_url": "https://api.minimax.chat/v1/text/chatcompletion_v2",
-            "model": "abab6.5s-chat",
+            "model": "MiniMax-M2.5",  # Latest flagship (2026)
         },
         "perplexity": {
             "name": "Perplexity",
             "env_key": "PERPLEXITY_API_KEY",
             "base_url": "https://api.perplexity.ai/chat/completions",
-            "model": "llama-3.1-sonar-small-128k-online",
+            "model": "sonar",  # Online search model
         },
     }
 

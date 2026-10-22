@@ -1,122 +1,100 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "attribution": {
+    "commit": "🗿 MoAI \u003cemail@mo.ai.kr\u003e",
+    "pr": "🗿 MoAI \u003cemail@mo.ai.kr\u003e",
+    "sessionUrl": false
+  },
+  "cleanupPeriodDays": 30,
+  "enableAllProjectMcpServers": true,
+  "env": {
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "64000",
+    "CLAUDE_CODE_NO_FLICKER": "1",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+    "ENABLE_TOOL_SEARCH": "1",
+    "MOAI_CONFIG_SOURCE": "sections",
+    "PATH": "C:\\Users\\taewo\\.local\\bin;C:\\Users\\taewo\\go\\bin;C:\\Program Files\\PowerShell\\7;C:\\Python314\\Scripts\\;C:\\Python314\\;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\;C:\\WINDOWS\\System32\\OpenSSH\\;C:\\Program Files\\nodejs\\;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\PowerShell\\7\\;C:\\Users\\taewo\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\taewo\\AppData\\Local\\Programs\\Microsoft VS Code\\bin;C:\\Users\\taewo\\AppData\\Roaming\\npm;C:\\Users\\taewo\\AppData\\Local\\Programs\\moai"
+  },
   "hooks": {
-    "SessionStart": [
+    "ConfigChange": [
       {
         "hooks": [
           {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-session-start.sh\"",
-            "timeout": 30,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-compact.sh\"",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-session-end.sh\"",
-            "timeout": 10,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-pre-tool.sh\"",
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-config-change.sh"
+            ],
+            "command": "bash",
             "timeout": 5,
             "type": "command"
           }
         ],
-        "matcher": "Write|Edit|Bash"
+        "matcher": "project_settings|local_settings|skills"
       }
     ],
-    "PostToolUse": [
+    "CwdChanged": [
       {
         "hooks": [
           {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-post-tool.sh\"",
-            "timeout": 60,
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-cwd-changed.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "FileChanged": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-file-changed.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
             "type": "command"
           }
         ],
-        "matcher": "Write|Edit"
+        "matcher": ".env|.envrc|.gitignore"
       }
     ],
-    "Stop": [
+    "InstructionsLoaded": [
       {
         "hooks": [
           {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-stop.sh\"",
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-instructions-loaded.sh"
+            ],
+            "async": true,
+            "command": "bash",
             "timeout": 5,
             "type": "command"
           }
         ]
       }
     ],
-    "SubagentStop": [
+    "PermissionDenied": [
       {
         "hooks": [
           {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-subagent-stop.sh\"",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "hooks": [
-          {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-post-tool-failure.sh\"",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-notification.sh\"",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-subagent-start.sh\"",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-user-prompt-submit.sh\"",
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-permission-denied.sh"
+            ],
+            "command": "bash",
             "timeout": 5,
             "type": "command"
           }
@@ -134,12 +112,178 @@
         ]
       }
     ],
-    "TeammateIdle": [
+    "PostCompact": [
       {
         "hooks": [
           {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-teammate-idle.sh\"",
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-post-compact.sh"
+            ],
+            "command": "bash",
             "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "manual|auto"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-post-tool.sh\"",
+            "timeout": 60,
+            "type": "command"
+          },
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/status-transition-ownership.sh\"",
+            "if": "Write(**/.moai/specs/**)",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/status-transition-ownership.sh\"",
+            "if": "Edit(**/.moai/specs/**)",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      },
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-harness-observe.sh\"",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-post-tool-failure.sh\"",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-compact.sh\"",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-pre-tool.sh\"",
+            "timeout": 15,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|Bash"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-session-end.sh\"",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-session-start.sh\"",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-stop.sh\"",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-stop-goal.sh\"",
+            "timeout": 120,
+            "type": "command"
+          },
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/sync-phase-quality-gate.sh\"",
+            "timeout": 60,
+            "type": "command"
+          },
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-harness-observe-stop.sh\"",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "-c",
+              "[ -f \"$0\" ] \u0026\u0026 exec bash \"$0\"; d=\"${0%/.claude/hooks/moai/*}\"; mkdir -p \"$d/.moai/logs\" 2\u003e/dev/null; printf \"%s %s\\n\" \"$(date -u +%FT%TZ)\" \"hook missing: $0\" \u003e\u003e \"$d/.moai/logs/hook-missing.log\" 2\u003e/dev/null; exit 0",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/moai/handle-stop-failure.sh"
+            ],
+            "command": "bash",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "rate_limit|authentication_failed|oauth_org_not_allowed|billing_error|max_output_tokens"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-subagent-start.sh\"",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-subagent-stop.sh\"",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-harness-observe-subagent-stop.sh\"",
+            "timeout": 10,
             "type": "command"
           }
         ]
@@ -156,22 +300,27 @@
         ]
       }
     ],
-    "WorktreeCreate": [
+    "TeammateIdle": [
       {
         "hooks": [
           {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-worktree-create.sh\"",
-            "timeout": 10,
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-teammate-idle.sh\"",
+            "timeout": 5,
             "type": "command"
           }
         ]
       }
     ],
-    "WorktreeRemove": [
+    "UserPromptSubmit": [
       {
         "hooks": [
           {
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-worktree-remove.sh\"",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-user-prompt-submit.sh\"",
+            "timeout": 5,
+            "type": "command"
+          },
+          {
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-harness-observe-user-prompt-submit.sh\"",
             "timeout": 10,
             "type": "command"
           }
@@ -179,21 +328,10 @@
       }
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": ".moai/status_line.sh"
-  },
+  "includeGitInstructions": true,
+  "model": "sonnet",
   "outputStyle": "MoAI",
-  "cleanupPeriodDays": 30,
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "64000",
-    "ENABLE_TOOL_SEARCH": "1",
-    "MOAI_CONFIG_SOURCE": "sections",
-    "PATH": "C:\\Users\\taewo\\go\\bin;c:\\Users\\taewo\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand;c:\\Users\\taewo\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.1\\bin\\x64;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.1\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\;C:\\WINDOWS\\System32\\OpenSSH\\;C:\\Program Files\\dotnet\\;C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\;C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\;C:\\Users\\taewo\\AppData\\Local\\Programs\\Python\\Python311;C:\\Users\\taewo\\AppData\\Local\\Programs\\Python\\Python311\\Scripts;C:\\Program Files\\gs\\gs10.06.0\\bin;C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR;C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common;C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2025.4.0\\;C:\\Program Files\\OpenSSL-Win64\\bin;C:\\Program Files\\nodejs\\;C:\\Program Files\\GitHub CLI\\;C:\\Program Files\\Git\\cmd;C:\\Program Files\\Warp\\bin;;C:\\Program Files\\Docker\\Docker\\resources\\bin;C:\\Users\\taewo\\AppData\\Local\\Programs\\moai;c:\\Users\\taewo\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand;c:\\Users\\taewo\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.1\\bin\\x64;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.1\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\;C:\\WINDOWS\\System32\\OpenSSH\\;C:\\Program Files\\dotnet\\;C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\;C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\;C:\\Users\\taewo\\AppData\\Local\\Programs\\Python\\Python311;C:\\Users\\taewo\\AppData\\Local\\Programs\\Python\\Python311\\Scripts;C:\\Program Files\\gs\\gs10.06.0\\bin;C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR;C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common;C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2025.4.0\\;C:\\Program Files\\OpenSSL-Win64\\bin;C:\\Program Files\\nodejs\\;C:\\Program Files\\GitHub CLI\\;C:\\Program Files\\Git\\cmd;C:\\Program Files\\Warp\\bin;C:\\Program Files\\Docker\\Docker\\resources\\bin;C:\\Users\\taewo\\scoop\\shims;C:\\Users\\taewo\\.local\\bin;C:\\Users\\taewo\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\taewo\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin;C:\\Users\\taewo\\AppData\\Local\\Programs\\Python\\Python311;C:\\Users\\taewo\\.dotnet\\tools;C:\\Users\\taewo\\.lmstudio\\bin;C:\\Users\\taewo\\AppData\\Local\\Programs\\Microsoft VS Code\\bin;C:\\Users\\taewo\\AppData\\Local\\Programs\\Ollama;C:\\Users\\taewo\\AppData\\Roaming\\npm;C:\\Users\\taewo\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Oven-sh.Bun_Microsoft.Winget.Source_8wekyb3d8bbwe\\./bun-windows-x64;C:\\Users\\taewo\\.dotnet\\tools;C:\\Users\\taewo\\AppData\\Local\\Microsoft\\WinGet\\Packages\\astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\\Users\\taewo\\.bun\\bin;C:\\Users\\taewo\\AppData\\Local\\GitHubDesktop\\bin;C:\\Users\\taewo\\.moai\\binc:\\Users\\taewo\\.vscode\\extensions\\ms-python.debugpy-2025.18.0-win32-x64\\bundled\\scripts\\noConfigScripts;c:\\Users\\taewo\\.vscode\\extensions\\ms-python.debugpy-2025.18.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-  },
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
       "AskUserQuestion",
       "BashOutput",
@@ -315,27 +453,16 @@
       "Read(./.env)",
       "Read(./.env.*)"
     ],
+    "defaultMode": "acceptEdits",
     "deny": [
       "Read(./secrets/**)",
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)",
       "Read(~/.config/gcloud/**)",
-      "Write(./secrets/**)",
-      "Write(~/.ssh/**)",
-      "Write(~/.aws/**)",
-      "Write(~/.config/gcloud/**)",
       "Edit(./secrets/**)",
       "Edit(~/.ssh/**)",
       "Edit(~/.aws/**)",
       "Edit(~/.config/gcloud/**)",
-      "Grep(./secrets/**)",
-      "Grep(~/.ssh/**)",
-      "Grep(~/.aws/**)",
-      "Grep(~/.config/gcloud/**)",
-      "Glob(./secrets/**)",
-      "Glob(~/.ssh/**)",
-      "Glob(~/.aws/**)",
-      "Glob(~/.config/gcloud/**)",
       "Bash(rm -rf /:*)",
       "Bash(rm -rf /*:*)",
       "Bash(rm -rf ~:*)",
@@ -378,11 +505,14 @@
       "Bash(mysql -e DROP:*)"
     ]
   },
-  "attribution": {
-    "commit": "\ud83d\uddff MoAI <email@mo.ai.kr>",
-    "pr": "\ud83d\uddff MoAI <email@mo.ai.kr>"
-  },
-  "enableAllProjectMcpServers": true,
+  "plansDirectory": ".moai/plans",
   "respectGitignore": true,
+  "showThinkingSummaries": false,
+  "skillListingBudgetFraction": 0.02,
+  "statusLine": {
+    "command": ".moai/status_line.sh",
+    "refreshInterval": 10,
+    "type": "command"
+  },
   "teammateMode": "auto"
 }

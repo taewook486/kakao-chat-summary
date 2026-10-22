@@ -59,7 +59,9 @@ def temp_db(temp_dir):
     and automatically cleaned up after the test.
     """
     db_path = temp_dir / "test.db"
-    yield db_path
+    # Ensure parent directory exists (temp_dir should exist, but be explicit)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    yield str(db_path)  # Return string to avoid Path issues
 
 
 @pytest.fixture
@@ -72,8 +74,8 @@ def db_session(temp_db):
     """
     from src.db.database import Database
 
-    # Create database with temp file
-    db = Database(db_path=str(temp_db))
+    # Create database with temp file (temp_db is now a string)
+    db = Database(db_path=temp_db)
 
     # Create all tables
     from src.db.models import Base
@@ -83,8 +85,9 @@ def db_session(temp_db):
 
     # Cleanup: close connection and delete file
     db.engine.dispose()
-    if temp_db.exists():
-        temp_db.unlink()
+    temp_path = Path(temp_db)
+    if temp_path.exists():
+        temp_path.unlink()
 
 
 @pytest.fixture

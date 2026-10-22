@@ -82,6 +82,18 @@ class URLRepository(Repository[URL]):
         """
         return self.db.get_urls_by_room(room_id)
 
+    def get_by_room(self, room_id: int) -> Dict[str, List[str]]:
+        """
+        Alias for get_urls_by_room().
+
+        Args:
+            room_id: Chat room ID.
+
+        Returns:
+            Dictionary mapping URLs to their descriptions.
+        """
+        return self.get_urls_by_room(room_id)
+
     def update(self, entity_id: int, **kwargs) -> Optional[URL]:
         """
         Update URL fields.
@@ -147,3 +159,15 @@ class URLRepository(Repository[URL]):
             Number of URLs deleted.
         """
         return self.db.clear_urls_by_room(room_id)
+
+    def delete_by_room(self, room_id: int) -> int:
+        """
+        Alias for clear_urls_by_room().
+
+        Args:
+            room_id: Chat room ID.
+
+        Returns:
+            Number of URLs deleted.
+        """
+        return self.clear_urls_by_room(room_id)

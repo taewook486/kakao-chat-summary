@@ -91,6 +91,19 @@ class SummaryRepository(Repository[Summary]):
         """
         return self.db.get_summaries_by_room(room_id, summary_type)
 
+    def get_by_room(self, room_id: int, summary_type: Optional[str] = None) -> List[Summary]:
+        """
+        Alias for get_summaries_by_room().
+
+        Args:
+            room_id: Chat room ID.
+            summary_type: Optional filter by summary type.
+
+        Returns:
+            List of Summary objects for the room.
+        """
+        return self.get_summaries_by_room(room_id, summary_type)
+
     def update(self, entity_id: int, **kwargs) -> Optional[Summary]:
         """
         Update summary fields.

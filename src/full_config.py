@@ -41,30 +41,30 @@ class LLMProvider:
     env_key: str
 
 
-# 지원하는 LLM 제공자 목록
+# 지원하는 LLM 제공자 목록 (2026년 2월 기준)
 LLM_PROVIDERS: Dict[str, LLMProvider] = {
     "glm": LLMProvider(
-        name="Z.AI GLM",
+        name="Zhipu GLM",
         api_url="https://api.z.ai/api/coding/paas/v4/chat/completions",
-        model="glm-4.7",
+        model="glm-5",  # 최신 플래그십 모델 (2026년 2월)
         env_key="ZAI_API_KEY"
     ),
     "chatgpt": LLMProvider(
         name="OpenAI ChatGPT",
         api_url="https://api.openai.com/v1/chat/completions",
-        model="gpt-4o-mini",
+        model="gpt-4o",  # 안정적인 프로덕션 모델
         env_key="OPENAI_API_KEY"
     ),
     "minimax": LLMProvider(
-        name="MiniMax Coding Plan",
-        api_url="https://api.minimax.io/v1/chat/completions",
-        model="MiniMax-M2.1",
+        name="MiniMax",
+        api_url="https://api.minimax.chat/v1/text/chatcompletion_v2",
+        model="MiniMax-M2.5",  # 최신 플래그십 모델 (2026)
         env_key="MINIMAX_API_KEY"
     ),
     "perplexity": LLMProvider(
         name="Perplexity",
         api_url="https://api.perplexity.ai/chat/completions",
-        model="sonar",
+        model="sonar",  # 온라인 검색 모델
         env_key="PERPLEXITY_API_KEY"
     ),
 }

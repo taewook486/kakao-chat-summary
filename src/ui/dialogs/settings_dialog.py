@@ -53,10 +53,10 @@ class SettingsDialog(QDialog):
 
         self.llm_provider = QComboBox()
         self.llm_provider.addItems([
-            "Z.AI GLM",
-            "OpenAI GPT",
-            "Anthropic Claude",
-            "Google Gemini"
+            "Zhipu GLM (glm-5)",
+            "OpenAI GPT (gpt-4o)",
+            "MiniMax (M2.5)",
+            "Perplexity (sonar)"
         ])
         llm_layout.addRow("LLM Provider:", self.llm_provider)
 

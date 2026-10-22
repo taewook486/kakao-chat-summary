@@ -855,10 +855,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "알림", "먼저 채팅방을 선택하세요.")
             return
 
-        if not self.current_room_file:
-            QMessageBox.warning(self, "알림", "선택된 채팅방에 파일이 없습니다.\n먼저 파일을 업로드해주세요.")
-            return
-
         # Check if summary already in progress via coordinator
         if self.worker_coordinator.summary_in_progress:
             QMessageBox.warning(self, "알림", "이미 요약이 진행 중입니다.\n완료 후 다시 시도하세요.")
@@ -875,6 +871,11 @@ class MainWindow(QMainWindow):
         from file_storage import get_storage
         storage = get_storage()
         available_dates = storage.get_available_dates(room_name)
+        # SummaryWorker reads daily originals from storage; the room's file_path
+        # is only a fallback and is unset for rooms created via "채팅방 만들기".
+        if not available_dates and not self.current_room_file:
+            QMessageBox.warning(self, "알림", "선택된 채팅방에 파일이 없습니다.\n먼저 파일을 업로드해주세요.")
+            return
         summarized_dates = storage.get_summarized_dates(room_name)
 
         # 요약 필요한 날짜 조회
